@@ -75,8 +75,7 @@ func TestOrderService_CreateOrder_ValidInput_ReturnsOrder(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := &mocks.OrderRepositoryMock{
-				CreateFunc: func(ctx context.Context, order *domain.Order) error {
-					return nil
+				CreateFunc: func(_ context.Context, _ *domain.Order) error {					return nil
 				},
 			}
 
@@ -212,7 +211,7 @@ func TestOrderService_GetOrderByID_Found_ReturnsOrder(t *testing.T) {
 	}
 
 	mockRepo := &mocks.OrderRepositoryMock{
-		FindByIDFunc: func(ctx context.Context, id string) (*domain.Order, error) {
+		FindByIDFunc: func(_ context.Context, id string) (*domain.Order, error) {
 			assert.Equal(t, orderID.String(), id)
 			return expectedOrder, nil
 		},
@@ -231,7 +230,7 @@ func TestOrderService_GetOrderByID_NotFound_ReturnsError(t *testing.T) {
 	orderID := uuid.New()
 
 	mockRepo := &mocks.OrderRepositoryMock{
-		FindByIDFunc: func(ctx context.Context, id string) (*domain.Order, error) {
+		FindByIDFunc: func(_ context.Context, _ string) (*domain.Order, error) {
 			return nil, domain.ErrOrderNotFound
 		},
 	}
@@ -291,7 +290,7 @@ func TestOrderService_ListOrders_WithPagination_ReturnsOrders(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := &mocks.OrderRepositoryMock{
-				ListFunc: func(ctx context.Context, opts repository.ListOptions) ([]*domain.Order, int64, error) {
+				ListFunc: func(_ context.Context, opts repository.ListOptions) ([]*domain.Order, int64, error) {
 					expectedOffset := (tt.request.Page - 1) * tt.request.PageSize
 					assert.Equal(t, tt.request.PageSize, opts.Limit)
 					assert.Equal(t, expectedOffset, opts.Offset)
@@ -349,7 +348,7 @@ func TestOrderService_ListOrders_WithStatusFilter_ReturnsFilteredOrders(t *testi
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := &mocks.OrderRepositoryMock{
-				ListFunc: func(ctx context.Context, opts repository.ListOptions) ([]*domain.Order, int64, error) {
+				ListFunc: func(_ context.Context, opts repository.ListOptions) ([]*domain.Order, int64, error) {
 					assert.Equal(t, tt.request.Status, opts.Status)
 					return tt.mockOrders, int64(len(tt.mockOrders)), nil
 				},
@@ -423,12 +422,12 @@ func TestOrderService_ListOrders_WithCustomerID_ReturnsFilteredOrders(t *testing
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := &mocks.OrderRepositoryMock{
-				FindByCustomerIDFunc: func(ctx context.Context, customerID string, opts repository.ListOptions) ([]*domain.Order, int64, error) {
+				FindByCustomerIDFunc: func(_ context.Context, customerID string, opts repository.ListOptions) ([]*domain.Order, int64, error) {
 					assert.Equal(t, tt.expectCustomerID, customerID)
 					assert.Equal(t, tt.request.Status, opts.Status)
 					return tt.mockOrders, tt.mockTotalCount, nil
 				},
-				ListFunc: func(ctx context.Context, opts repository.ListOptions) ([]*domain.Order, int64, error) {
+				ListFunc: func(_ context.Context, _ repository.ListOptions) ([]*domain.Order, int64, error) {
 					t.Fatal("List should not be called when CustomerID is set")
 					return nil, 0, nil
 				},
@@ -447,10 +446,10 @@ func TestOrderService_ListOrders_WithCustomerID_ReturnsFilteredOrders(t *testing
 
 func TestOrderService_ListOrders_WithoutCustomerID_CallsList(t *testing.T) {
 	mockRepo := &mocks.OrderRepositoryMock{
-		ListFunc: func(ctx context.Context, opts repository.ListOptions) ([]*domain.Order, int64, error) {
+		ListFunc: func(_ context.Context, _ repository.ListOptions) ([]*domain.Order, int64, error) {
 			return createMockOrders(5), 5, nil
 		},
-		FindByCustomerIDFunc: func(ctx context.Context, customerID string, opts repository.ListOptions) ([]*domain.Order, int64, error) {
+		FindByCustomerIDFunc: func(_ context.Context, _ string, _ repository.ListOptions) ([]*domain.Order, int64, error) {
 			t.Fatal("FindByCustomerID should not be called when CustomerID is nil")
 			return nil, 0, nil
 		},
@@ -469,7 +468,7 @@ func TestOrderService_ListOrders_WithoutCustomerID_CallsList(t *testing.T) {
 
 func TestOrderService_ListOrders_EmptyResults_ReturnsEmptyList(t *testing.T) {
 	mockRepo := &mocks.OrderRepositoryMock{
-		ListFunc: func(ctx context.Context, opts repository.ListOptions) ([]*domain.Order, int64, error) {
+		ListFunc: func(_ context.Context, _ repository.ListOptions) ([]*domain.Order, int64, error) {
 			return []*domain.Order{}, 0, nil
 		},
 	}
@@ -553,10 +552,10 @@ func TestOrderService_UpdateOrderStatus_ValidTransitions_Success(t *testing.T) {
 			}
 
 			mockRepo := &mocks.OrderRepositoryMock{
-				FindByIDFunc: func(ctx context.Context, id string) (*domain.Order, error) {
+				FindByIDFunc: func(_ context.Context, _ string) (*domain.Order, error) {
 					return currentOrder, nil
 				},
-				UpdateFunc: func(ctx context.Context, order *domain.Order) error {
+				UpdateFunc: func(_ context.Context, order *domain.Order) error {
 					assert.Equal(t, tt.newStatus, order.Status)
 					return nil
 				},
@@ -638,7 +637,7 @@ func TestOrderService_UpdateOrderStatus_InvalidTransitions_ReturnsError(t *testi
 			}
 
 			mockRepo := &mocks.OrderRepositoryMock{
-				FindByIDFunc: func(ctx context.Context, id string) (*domain.Order, error) {
+				FindByIDFunc: func(_ context.Context, _ string) (*domain.Order, error) {
 					return currentOrder, nil
 				},
 			}
@@ -657,7 +656,7 @@ func TestOrderService_UpdateOrderStatus_OrderNotFound_ReturnsError(t *testing.T)
 	orderID := uuid.New()
 
 	mockRepo := &mocks.OrderRepositoryMock{
-		FindByIDFunc: func(ctx context.Context, id string) (*domain.Order, error) {
+		FindByIDFunc: func(_ context.Context, _ string) (*domain.Order, error) {
 			return nil, domain.ErrOrderNotFound
 		},
 	}
@@ -745,10 +744,10 @@ func TestOrderService_UpdateOrderStatus_ConcurrentModification_ReturnsError(t *t
 	}
 
 	mockRepo := &mocks.OrderRepositoryMock{
-		FindByIDFunc: func(ctx context.Context, id string) (*domain.Order, error) {
+		FindByIDFunc: func(_ context.Context, _ string) (*domain.Order, error) {
 			return currentOrder, nil
 		},
-		UpdateFunc: func(ctx context.Context, order *domain.Order) error {
+		UpdateFunc: func(_ context.Context, _ *domain.Order) error {
 			// Simulate another process having modified the order
 			// (version in DB is now 2, but we're trying to update with version 1)
 			return domain.ErrConcurrentModification
@@ -787,10 +786,10 @@ func TestOrderService_UpdateOrder_ConcurrentModification_ReturnsError(t *testing
 	}
 
 	mockRepo := &mocks.OrderRepositoryMock{
-		FindByIDFunc: func(ctx context.Context, id string) (*domain.Order, error) {
+		FindByIDFunc: func(_ context.Context, _ string) (*domain.Order, error) {
 			return currentOrder, nil
 		},
-		UpdateFunc: func(ctx context.Context, order *domain.Order) error {
+		UpdateFunc: func(_ context.Context, _ *domain.Order) error {
 			// Simulate concurrent modification
 			return domain.ErrConcurrentModification
 		},
@@ -840,10 +839,10 @@ func TestOrderService_UpdateOrderStatus_VersionIncrementsOnSuccess(t *testing.T)
 	}
 
 	mockRepo := &mocks.OrderRepositoryMock{
-		FindByIDFunc: func(ctx context.Context, id string) (*domain.Order, error) {
+		FindByIDFunc: func(_ context.Context, _ string) (*domain.Order, error) {
 			return currentOrder, nil
 		},
-		UpdateFunc: func(ctx context.Context, order *domain.Order) error {
+		UpdateFunc: func(_ context.Context, order *domain.Order) error {
 			// Simulate successful update - version gets incremented
 			order.Version++
 			return nil
@@ -861,7 +860,7 @@ func TestOrderService_UpdateOrderStatus_VersionIncrementsOnSuccess(t *testing.T)
 
 func TestOrderService_CreateOrder_SetsInitialVersion(t *testing.T) {
 	mockRepo := &mocks.OrderRepositoryMock{
-		CreateFunc: func(ctx context.Context, order *domain.Order) error {
+		CreateFunc: func(_ context.Context, order *domain.Order) error {
 			// Repository sets version to 1 on create
 			order.Version = 1
 			return nil
@@ -915,10 +914,10 @@ func TestOrderService_UpdateOrderStatus_PreservesVersionFromRead(t *testing.T) {
 
 	var capturedVersion int
 	mockRepo := &mocks.OrderRepositoryMock{
-		FindByIDFunc: func(ctx context.Context, id string) (*domain.Order, error) {
+		FindByIDFunc: func(_ context.Context, _ string) (*domain.Order, error) {
 			return currentOrder, nil
 		},
-		UpdateFunc: func(ctx context.Context, order *domain.Order) error {
+		UpdateFunc: func(_ context.Context, order *domain.Order) error {
 			// Capture the version being sent to update
 			capturedVersion = order.Version
 			order.Version++
@@ -962,13 +961,13 @@ func TestOrderService_GetOrderByID_CacheHit_ReturnsCachedOrder(t *testing.T) {
 
 	repoCalled := false
 	mockRepo := &mocks.OrderRepositoryMock{
-		FindByIDFunc: func(ctx context.Context, id string) (*domain.Order, error) {
+		FindByIDFunc: func(_ context.Context, _ string) (*domain.Order, error) {
 			repoCalled = true
 			return nil, nil
 		},
 	}
 	mockCache := &mocks.OrderCacheMock{
-		GetFunc: func(ctx context.Context, id string) (*domain.Order, error) {
+		GetFunc: func(_ context.Context, id string) (*domain.Order, error) {
 			assert.Equal(t, orderID.String(), id)
 			return cachedOrder, nil
 		},
@@ -1006,15 +1005,15 @@ func TestOrderService_GetOrderByID_CacheMiss_FetchesFromRepoAndPopulatesCache(t 
 	var cachedOrder *domain.Order
 	var cachedTTL time.Duration
 	mockRepo := &mocks.OrderRepositoryMock{
-		FindByIDFunc: func(ctx context.Context, id string) (*domain.Order, error) {
+		FindByIDFunc: func(_ context.Context, _ string) (*domain.Order, error) {
 			return repoOrder, nil
 		},
 	}
 	mockCache := &mocks.OrderCacheMock{
-		GetFunc: func(ctx context.Context, id string) (*domain.Order, error) {
+		GetFunc: func(_ context.Context, _ string) (*domain.Order, error) {
 			return nil, nil // cache miss
 		},
-		SetFunc: func(ctx context.Context, order *domain.Order, ttl time.Duration) error {
+		SetFunc: func(_ context.Context, order *domain.Order, ttl time.Duration) error {
 			cachedOrder = order
 			cachedTTL = ttl
 			return nil
@@ -1052,15 +1051,15 @@ func TestOrderService_GetOrderByID_CacheError_FallsThrough(t *testing.T) {
 	}
 
 	mockRepo := &mocks.OrderRepositoryMock{
-		FindByIDFunc: func(ctx context.Context, id string) (*domain.Order, error) {
+		FindByIDFunc: func(_ context.Context, _ string) (*domain.Order, error) {
 			return repoOrder, nil
 		},
 	}
 	mockCache := &mocks.OrderCacheMock{
-		GetFunc: func(ctx context.Context, id string) (*domain.Order, error) {
+		GetFunc: func(_ context.Context, _ string) (*domain.Order, error) {
 			return nil, fmt.Errorf("redis connection refused")
 		},
-		SetFunc: func(ctx context.Context, order *domain.Order, ttl time.Duration) error {
+		SetFunc: func(_ context.Context, _ *domain.Order, _ time.Duration) error {
 			return nil
 		},
 	}
@@ -1095,15 +1094,15 @@ func TestOrderService_UpdateOrderStatus_InvalidatesCache(t *testing.T) {
 
 	var deletedID string
 	mockRepo := &mocks.OrderRepositoryMock{
-		FindByIDFunc: func(ctx context.Context, id string) (*domain.Order, error) {
+		FindByIDFunc: func(_ context.Context, _ string) (*domain.Order, error) {
 			return currentOrder, nil
 		},
-		UpdateFunc: func(ctx context.Context, order *domain.Order) error {
+		UpdateFunc: func(_ context.Context, _ *domain.Order) error {
 			return nil
 		},
 	}
 	mockCache := &mocks.OrderCacheMock{
-		DeleteFunc: func(ctx context.Context, id string) error {
+		DeleteFunc: func(_ context.Context, id string) error {
 			deletedID = id
 			return nil
 		},
@@ -1138,15 +1137,15 @@ func TestOrderService_UpdateOrderStatus_CacheDeleteError_NonFatal(t *testing.T) 
 	}
 
 	mockRepo := &mocks.OrderRepositoryMock{
-		FindByIDFunc: func(ctx context.Context, id string) (*domain.Order, error) {
+		FindByIDFunc: func(_ context.Context, _ string) (*domain.Order, error) {
 			return currentOrder, nil
 		},
-		UpdateFunc: func(ctx context.Context, order *domain.Order) error {
+		UpdateFunc: func(_ context.Context, _ *domain.Order) error {
 			return nil
 		},
 	}
 	mockCache := &mocks.OrderCacheMock{
-		DeleteFunc: func(ctx context.Context, id string) error {
+		DeleteFunc: func(_ context.Context, _ string) error {
 			return errors.New("redis timeout")
 		},
 	}

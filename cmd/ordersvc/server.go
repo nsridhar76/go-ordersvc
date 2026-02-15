@@ -64,8 +64,8 @@ func (r *inMemoryRepository) FindByID(_ context.Context, id string) (*domain.Ord
 		return nil, domain.ErrOrderNotFound
 	}
 	// Return a copy to prevent mutation
-	copy := *order
-	return &copy, nil
+	orderCopy := *order
+	return &orderCopy, nil
 }
 
 func (r *inMemoryRepository) Update(_ context.Context, order *domain.Order) error {

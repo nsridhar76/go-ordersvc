@@ -29,6 +29,7 @@ type OrderCacheMock struct {
 	DeletePatternFunc func(ctx context.Context, pattern string) error
 }
 
+// Get retrieves an order from cache.
 func (m *OrderCacheMock) Get(ctx context.Context, id string) (*domain.Order, error) {
 	if m.GetFunc != nil {
 		return m.GetFunc(ctx, id)
@@ -36,6 +37,7 @@ func (m *OrderCacheMock) Get(ctx context.Context, id string) (*domain.Order, err
 	return nil, nil
 }
 
+// Set stores an order in cache with TTL.
 func (m *OrderCacheMock) Set(ctx context.Context, order *domain.Order, ttl time.Duration) error {
 	if m.SetFunc != nil {
 		return m.SetFunc(ctx, order, ttl)
@@ -43,6 +45,7 @@ func (m *OrderCacheMock) Set(ctx context.Context, order *domain.Order, ttl time.
 	return nil
 }
 
+// Delete removes an order from cache.
 func (m *OrderCacheMock) Delete(ctx context.Context, id string) error {
 	if m.DeleteFunc != nil {
 		return m.DeleteFunc(ctx, id)
@@ -50,6 +53,7 @@ func (m *OrderCacheMock) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// DeletePattern removes all keys matching pattern.
 func (m *OrderCacheMock) DeletePattern(ctx context.Context, pattern string) error {
 	if m.DeletePatternFunc != nil {
 		return m.DeletePatternFunc(ctx, pattern)
