@@ -198,7 +198,15 @@ func (s *orderServiceImpl) ListOrders(ctx context.Context, req ListOrdersRequest
 	}
 
 	// Get orders from repository
-	orders, totalCount, err := s.repo.List(ctx, opts)
+	var orders []*domain.Order
+	var totalCount int64
+	var err error
+
+	if req.CustomerID != nil && *req.CustomerID != "" {
+		orders, totalCount, err = s.repo.FindByCustomerID(ctx, *req.CustomerID, opts)
+	} else {
+		orders, totalCount, err = s.repo.List(ctx, opts)
+	}
 	if err != nil {
 		return nil, err
 	}

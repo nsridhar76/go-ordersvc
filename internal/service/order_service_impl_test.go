@@ -370,6 +370,101 @@ func TestOrderService_ListOrders_WithStatusFilter_ReturnsFilteredOrders(t *testi
 	}
 }
 
+func TestOrderService_ListOrders_WithCustomerID_ReturnsFilteredOrders(t *testing.T) {
+	customerA := "customer-a"
+	customerB := "customer-b"
+	pendingStatus := domain.OrderStatusPending
+
+	tests := []struct {
+		name             string
+		request          ListOrdersRequest
+		mockOrders       []*domain.Order
+		mockTotalCount   int64
+		expectCustomerID string
+	}{
+		{
+			name: "filter by customer_id only",
+			request: ListOrdersRequest{
+				Page:       1,
+				PageSize:   10,
+				CustomerID: &customerA,
+			},
+			mockOrders:       createMockOrdersForCustomer(customerA, 3),
+			mockTotalCount:   3,
+			expectCustomerID: customerA,
+		},
+		{
+			name: "filter by customer_id and status",
+			request: ListOrdersRequest{
+				Page:       1,
+				PageSize:   10,
+				CustomerID: &customerB,
+				Status:     &pendingStatus,
+			},
+			mockOrders:       createMockOrdersForCustomer(customerB, 2),
+			mockTotalCount:   2,
+			expectCustomerID: customerB,
+		},
+		{
+			name: "customer with no orders returns empty list",
+			request: ListOrdersRequest{
+				Page:       1,
+				PageSize:   10,
+				CustomerID: &customerA,
+			},
+			mockOrders:       []*domain.Order{},
+			mockTotalCount:   0,
+			expectCustomerID: customerA,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := &mocks.OrderRepositoryMock{
+				FindByCustomerIDFunc: func(ctx context.Context, customerID string, opts repository.ListOptions) ([]*domain.Order, int64, error) {
+					assert.Equal(t, tt.expectCustomerID, customerID)
+					assert.Equal(t, tt.request.Status, opts.Status)
+					return tt.mockOrders, tt.mockTotalCount, nil
+				},
+				ListFunc: func(ctx context.Context, opts repository.ListOptions) ([]*domain.Order, int64, error) {
+					t.Fatal("List should not be called when CustomerID is set")
+					return nil, 0, nil
+				},
+			}
+
+			svc := NewOrderService(mockRepo)
+			result, err := svc.ListOrders(context.Background(), tt.request)
+
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.Equal(t, len(tt.mockOrders), len(result.Data))
+			assert.Equal(t, tt.mockTotalCount, result.TotalCount)
+		})
+	}
+}
+
+func TestOrderService_ListOrders_WithoutCustomerID_CallsList(t *testing.T) {
+	mockRepo := &mocks.OrderRepositoryMock{
+		ListFunc: func(ctx context.Context, opts repository.ListOptions) ([]*domain.Order, int64, error) {
+			return createMockOrders(5), 5, nil
+		},
+		FindByCustomerIDFunc: func(ctx context.Context, customerID string, opts repository.ListOptions) ([]*domain.Order, int64, error) {
+			t.Fatal("FindByCustomerID should not be called when CustomerID is nil")
+			return nil, 0, nil
+		},
+	}
+
+	svc := NewOrderService(mockRepo)
+	result, err := svc.ListOrders(context.Background(), ListOrdersRequest{
+		Page:     1,
+		PageSize: 10,
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 5, len(result.Data))
+}
+
 func TestOrderService_ListOrders_EmptyResults_ReturnsEmptyList(t *testing.T) {
 	mockRepo := &mocks.OrderRepositoryMock{
 		ListFunc: func(ctx context.Context, opts repository.ListOptions) ([]*domain.Order, int64, error) {
@@ -585,6 +680,16 @@ func createMockOrders(count int) []*domain.Order {
 
 func createMockOrder(status domain.OrderStatus) *domain.Order {
 	return createMockOrderWithVersion(status, 1)
+}
+
+func createMockOrdersForCustomer(customerID string, count int) []*domain.Order {
+	orders := make([]*domain.Order, count)
+	for i := 0; i < count; i++ {
+		o := createMockOrder(domain.OrderStatusPending)
+		o.CustomerID = customerID
+		orders[i] = o
+	}
+	return orders
 }
 
 func createMockOrderWithVersion(status domain.OrderStatus, version int) *domain.Order {

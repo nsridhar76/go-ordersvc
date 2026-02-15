@@ -376,6 +376,104 @@ func TestDeleteOrder_NonExistent_Returns404(t *testing.T) {
 	assert.Equal(t, "ORDER_NOT_FOUND", errResp.Code)
 }
 
+// GET /api/v1/orders?customer_id= tests (ORD-100)
+
+func TestListOrders_CustomerIDFilter_ReturnsOnlyCustomerOrders(t *testing.T) {
+	customerA := uuid.New().String()
+	customerB := uuid.New().String()
+
+	// Create 2 orders for customer A
+	for i := 0; i < 2; i++ {
+		req := CreateOrderRequest{
+			CustomerID: customerA,
+			Items:      []OrderItem{{ProductID: "prod-a", Name: "Product A", Quantity: 1, Price: 10.00}},
+		}
+		resp, _ := post(t, "/api/v1/orders", req)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
+	}
+
+	// Create 1 order for customer B
+	reqB := CreateOrderRequest{
+		CustomerID: customerB,
+		Items:      []OrderItem{{ProductID: "prod-b", Name: "Product B", Quantity: 1, Price: 20.00}},
+	}
+	resp, _ := post(t, "/api/v1/orders", reqB)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	// List orders for customer A only
+	resp, body := get(t, "/api/v1/orders?customer_id="+customerA)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var listResp ListOrdersResponse
+	err := json.Unmarshal(body, &listResp)
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(2), listResp.Total, "Customer A should have exactly 2 orders")
+	for _, order := range listResp.Orders {
+		assert.Equal(t, customerA, order.CustomerID, "All returned orders should belong to customer A")
+	}
+}
+
+func TestListOrders_CustomerIDWithStatusFilter_ReturnsCombinedFilter(t *testing.T) {
+	customerID := uuid.New().String()
+
+	// Create an order for this customer
+	createReq := CreateOrderRequest{
+		CustomerID: customerID,
+		Items:      []OrderItem{{ProductID: "prod-combo", Name: "Combo Test", Quantity: 1, Price: 30.00}},
+	}
+	createResp, createBody := post(t, "/api/v1/orders", createReq)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
+
+	var createdOrder OrderResponse
+	err := json.Unmarshal(createBody, &createdOrder)
+	require.NoError(t, err)
+
+	// Transition to confirmed
+	statusResp, _ := patch(t, "/api/v1/orders/"+createdOrder.ID+"/status", UpdateStatusRequest{Status: "confirmed"})
+	require.Equal(t, http.StatusOK, statusResp.StatusCode)
+
+	// Filter by customer_id + status=pending (should NOT include the confirmed order)
+	resp, body := get(t, "/api/v1/orders?customer_id="+customerID+"&status=pending")
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var pendingResp ListOrdersResponse
+	err = json.Unmarshal(body, &pendingResp)
+	require.NoError(t, err)
+
+	for _, order := range pendingResp.Orders {
+		assert.Equal(t, "pending", order.Status, "Should only return pending orders")
+	}
+
+	// Filter by customer_id + status=confirmed (should include the confirmed order)
+	resp, body = get(t, "/api/v1/orders?customer_id="+customerID+"&status=confirmed")
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var confirmedResp ListOrdersResponse
+	err = json.Unmarshal(body, &confirmedResp)
+	require.NoError(t, err)
+
+	assert.GreaterOrEqual(t, len(confirmedResp.Orders), 1, "Should find the confirmed order")
+	for _, order := range confirmedResp.Orders {
+		assert.Equal(t, customerID, order.CustomerID)
+		assert.Equal(t, "confirmed", order.Status)
+	}
+}
+
+func TestListOrders_CustomerIDWithNoOrders_ReturnsEmptyList(t *testing.T) {
+	nonExistentCustomer := uuid.New().String()
+
+	resp, body := get(t, "/api/v1/orders?customer_id="+nonExistentCustomer)
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "Should return 200 with empty list, not 404")
+
+	var listResp ListOrdersResponse
+	err := json.Unmarshal(body, &listResp)
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(0), listResp.Total)
+	assert.Empty(t, listResp.Orders)
+}
+
 // Full lifecycle test
 
 func TestOrderLifecycle_FullFlow(t *testing.T) {

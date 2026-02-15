@@ -131,10 +131,17 @@ func (h *OrderHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 		status = &s
 	}
 
+	// Parse customer_id filter
+	var customerID *string
+	if cid := r.URL.Query().Get("customer_id"); cid != "" {
+		customerID = &cid
+	}
+
 	req := service.ListOrdersRequest{
-		Page:     page,
-		PageSize: pageSize,
-		Status:   status,
+		Page:       page,
+		PageSize:   pageSize,
+		Status:     status,
+		CustomerID: customerID,
 	}
 
 	result, err := h.service.ListOrders(r.Context(), req)

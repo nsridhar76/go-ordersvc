@@ -30,7 +30,8 @@ type UpdateOrderDTO struct {
 
 // ListOrdersRequest represents pagination and filtering options
 type ListOrdersRequest struct {
-	Page     int
-	PageSize int
-	Status   *domain.OrderStatus
+	Page       int
+	PageSize   int
+	Status     *domain.OrderStatus
+	CustomerID *string
 }
