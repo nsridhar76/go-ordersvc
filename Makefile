@@ -155,6 +155,21 @@ drift-check: ## Verify no config drift from ADRs
 		echo "PASS: Order routes use /api/v1 prefix" || \
 		{ echo "FAIL: Routes missing /api/v1/orders prefix (violates ADR-0002)"; exit 1; }
 	@echo ""
+	@echo "ADR-0004 CONSTRAINT: No cache or Redis imports in handler layer..."
+	@grep -rn "internal/cache\|go-redis\|redis" internal/handler/ && \
+		{ echo "FAIL: Handler imports cache/Redis (violates ADR-0004)"; exit 1; } || \
+		echo "PASS: No cache/Redis imports in handlers"
+	@echo ""
+	@echo "ADR-0004 CONSTRAINT: Cache invalidation in UpdateOrderStatus..."
+	@grep -A40 "func.*UpdateOrderStatus" internal/service/order_service_impl.go | grep -q "cache" && \
+		echo "PASS: UpdateOrderStatus invalidates cache" || \
+		{ echo "FAIL: UpdateOrderStatus missing cache invalidation (violates ADR-0004)"; exit 1; }
+	@echo ""
+	@echo "ADR-0005 CONSTRAINT: No rate limiting logic in handler layer..."
+	@grep -rn "rate\|RateLimit\|limiter\|429\|TooManyRequests" internal/handler/ && \
+		{ echo "FAIL: Handler contains rate limiting logic (violates ADR-0005)"; exit 1; } || \
+		echo "PASS: No rate limiting logic in handlers"
+	@echo ""
 	@echo "==> All drift checks passed"
 
 # ============================================================================
