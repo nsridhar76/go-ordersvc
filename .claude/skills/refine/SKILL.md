@@ -107,48 +107,146 @@ For each option, document:
 ```markdown
 ### Implementation Subtasks
 
-1. **Create ADR**
-   - [ ] Write ADR-NNNN using TEMPLATE.md
-   - [ ] Document CONSTRAINT rules if any
-   - [ ] Get team review and approval
-   - **Acceptance:** ADR status = "Accepted"
-
-2. **Update Domain Layer**
+1. **Update Domain Layer**
    - [ ] Add new entity fields
    - [ ] Update validation logic
    - [ ] Add unit tests
    - **Acceptance:** `make test` passes, coverage >80%
 
-3. **Implement Repository**
+2. **Implement Repository**
    - [ ] Add new queries with optimistic locking
    - [ ] Update migrations
    - [ ] Test version conflict handling
    - **Acceptance:** Integration tests pass
 
-4. **Update Service Layer**
+3. **Update Service Layer**
    - [ ] Add business logic
    - [ ] Handle concurrent modification errors
    - [ ] Add service tests
    - **Acceptance:** All CONSTRAINT rules verified
 
-5. **Add HTTP Handlers**
+4. **Add HTTP Handlers**
    - [ ] Implement endpoints
    - [ ] Add request/response validation
    - [ ] Update OpenAPI spec
    - **Acceptance:** API tests pass, 409 handling works
 
-6. **Documentation**
+5. **Documentation**
    - [ ] Update CLAUDE.md if needed
    - [ ] Add API examples
    - [ ] Update Traceability in ADR
    - **Acceptance:** Docs reviewed
 
-7. **Verification**
+6. **Verification**
    - [ ] Run `make ci`
    - [ ] Manual testing against acceptance criteria
    - [ ] Update Jira ticket
    - **Acceptance:** All checks pass
 ```
+
+### Phase 6: Generate ADR (After Engineer Approval)
+
+**Wait for explicit engineer approval before generating the ADR.**
+
+Once the engineer approves the recommended option:
+
+1. **Determine ADR number**
+   - Check existing ADRs in `docs/decisions/`
+   - Use next sequential number (e.g., ADR-0004)
+
+2. **Generate ADR file** at `docs/decisions/ADR-NNNN-<slug>.md`:
+
+```markdown
+# ADR-NNNN: <Title>
+
+## Status
+Accepted
+
+**Date:** <today>
+
+## Business Context
+
+### Problem Statement
+<extracted from Jira ticket - what user/business problem are we solving?>
+
+### Success Criteria
+<measurable outcomes from the ticket>
+
+### Constraints
+<business constraints: timeline, compliance, compatibility>
+
+## Options Considered
+
+### Option 1: <name>
+**Pros:**
+- ...
+
+**Cons:**
+- ...
+
+**Estimated Effort:** S/M/L
+
+### Option 2: <name>
+...
+
+## Decision
+
+**We will use <chosen option>.**
+
+### Rationale
+<why this option was selected>
+
+## Constraints
+
+> **CRITICAL: All CONSTRAINT blocks are enforceable rules. Violations will break the build.**
+
+### CONSTRAINT: <Rule Name>
+**BECAUSE:** <why this rule exists>
+
+**CHECK:** <how to verify compliance - grep command, test, or manual check>
+
+**Example:**
+\`\`\`go
+// Good:
+<compliant code>
+
+// Bad:
+<non-compliant code>
+\`\`\`
+
+## Consequences
+
+### Positive
+- ...
+
+### Negative
+- ...
+
+### Mitigations
+- ...
+
+## Traceability
+
+### Related Work
+- **Jira Ticket:** <link>
+- **Pull Request:** TBD
+- **Parent ADR:** <if applicable>
+- **Related ADRs:** <if applicable>
+
+### Implementation Subtasks
+<copy from Phase 5>
+
+### Updates
+- **<today>:** Initial acceptance
+```
+
+3. **Add CONSTRAINT checks to drift-check** (if new rules added)
+   - Update `Makefile` drift-check target with grep patterns
+   - Ensure CI catches violations
+
+4. **Link back to Jira**
+   - Add ADR link to the Jira ticket
+   - Create Jira subtasks from implementation tasks if needed
 
 ## Output Format
 
