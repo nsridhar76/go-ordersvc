@@ -21,151 +21,32 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
-	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nsridhar76/go-ordersvc/internal/cache/redis"
 	"github.com/nsridhar76/go-ordersvc/internal/config"
-	"github.com/nsridhar76/go-ordersvc/internal/domain"
 	httpHandler "github.com/nsridhar76/go-ordersvc/internal/handler/http"
-	"github.com/nsridhar76/go-ordersvc/internal/repository"
+	"github.com/nsridhar76/go-ordersvc/internal/repository/postgres"
 	"github.com/nsridhar76/go-ordersvc/internal/service"
 )
 
-// inMemoryRepository is a temporary in-memory implementation for testing
-type inMemoryRepository struct {
-	mu     sync.RWMutex
-	orders map[string]*domain.Order
+// pgHealthChecker adapts pgxpool.Pool to the HealthChecker interface
+type pgHealthChecker struct {
+	pool *pgxpool.Pool
 }
 
-func newInMemoryRepository() *inMemoryRepository {
-	return &inMemoryRepository{
-		orders: make(map[string]*domain.Order),
-	}
-}
-
-func (r *inMemoryRepository) Create(_ context.Context, order *domain.Order) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	order.Version = 1
-	order.CreatedAt = time.Now()
-	order.UpdatedAt = time.Now()
-	r.orders[order.ID.String()] = order
-	return nil
-}
-
-func (r *inMemoryRepository) FindByID(_ context.Context, id string) (*domain.Order, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	order, ok := r.orders[id]
-	if !ok || order.DeletedAt != nil {
-		return nil, domain.ErrOrderNotFound
-	}
-	// Return a copy to prevent mutation
-	orderCopy := *order
-	return &orderCopy, nil
-}
-
-func (r *inMemoryRepository) Update(_ context.Context, order *domain.Order) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	existing, ok := r.orders[order.ID.String()]
-	if !ok || existing.DeletedAt != nil {
-		return domain.ErrOrderNotFound
-	}
-
-	// Check version for optimistic locking (ADR-0003)
-	if existing.Version != order.Version {
-		return domain.ErrConcurrentModification
-	}
-
-	order.Version++
-	order.UpdatedAt = time.Now()
-	r.orders[order.ID.String()] = order
-	return nil
-}
-
-func (r *inMemoryRepository) Delete(_ context.Context, id string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	order, ok := r.orders[id]
-	if !ok || order.DeletedAt != nil {
-		return domain.ErrOrderNotFound
-	}
-
-	now := time.Now()
-	order.DeletedAt = &now
-	return nil
-}
-
-func (r *inMemoryRepository) List(_ context.Context, opts repository.ListOptions) ([]*domain.Order, int64, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	var result []*domain.Order
-	for _, order := range r.orders {
-		if order.DeletedAt != nil {
-			continue
-		}
-		if opts.Status != nil && order.Status != *opts.Status {
-			continue
-		}
-		result = append(result, order)
-	}
-
-	total := int64(len(result))
-
-	// Apply pagination
-	start := opts.Offset
-	if start > len(result) {
-		start = len(result)
-	}
-	end := start + opts.Limit
-	if end > len(result) {
-		end = len(result)
-	}
-
-	return result[start:end], total, nil
-}
-
-func (r *inMemoryRepository) FindByCustomerID(_ context.Context, customerID string, opts repository.ListOptions) ([]*domain.Order, int64, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	var result []*domain.Order
-	for _, order := range r.orders {
-		if order.DeletedAt != nil {
-			continue
-		}
-		if order.CustomerID != customerID {
-			continue
-		}
-		if opts.Status != nil && order.Status != *opts.Status {
-			continue
-		}
-		result = append(result, order)
-	}
-
-	total := int64(len(result))
-	return result, total, nil
-}
-
-// stubHealthChecker is a temporary stub for health checks
-type stubHealthChecker struct{}
-
-func (s *stubHealthChecker) Ping(_ context.Context) error {
-	return nil
+func (h *pgHealthChecker) Ping(ctx context.Context) error {
+	return h.pool.Ping(ctx)
 }
 
 // Server holds the HTTP server and its dependencies
 type Server struct {
-	httpServer *http.Server
-	cfg        *config.Config
-	logger     *slog.Logger
+	httpServer  *http.Server
+	cfg         *config.Config
+	logger      *slog.Logger
+	dbPool      *pgxpool.Pool
+	redisCloser func() error
 }
 
 // NewServer creates a new server instance
@@ -176,17 +57,61 @@ func NewServer(cfg *config.Config) *Server {
 	}))
 	slog.SetDefault(logger)
 
-	// TODO: Initialize database connection and repository
-	// For now, using in-memory repository for testing
-	repo := newInMemoryRepository()
-	healthChecker := &stubHealthChecker{}
+	// Initialize PostgreSQL connection pool
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		cfg.Database.User,
+		cfg.Database.Password,
+		cfg.Database.Host,
+		cfg.Database.Port,
+		cfg.Database.Database,
+		cfg.Database.SSLMode,
+	)
+
+	poolCfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		logger.Error("failed to parse database config", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	poolCfg.MaxConns = safeInt32(cfg.Database.MaxOpenConns)
+	poolCfg.MinConns = safeInt32(cfg.Database.MaxIdleConns)
+	poolCfg.MaxConnLifetime = cfg.Database.ConnMaxLifetime
+	poolCfg.MaxConnIdleTime = cfg.Database.ConnMaxIdleTime
+
+	dbPool, err := pgxpool.NewWithConfig(context.Background(), poolCfg)
+	if err != nil {
+		logger.Error("failed to create database pool", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	if err := dbPool.Ping(context.Background()); err != nil {
+		logger.Error("failed to ping database", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	logger.Info("connected to PostgreSQL", slog.String("host", cfg.Database.Host), slog.Int("port", cfg.Database.Port))
+
+	// Initialize Redis client
+	redisClient, err := redis.NewClient(redis.Config{
+		Host:     cfg.Redis.Host,
+		Port:     cfg.Redis.Port,
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+	})
+	if err != nil {
+		logger.Error("failed to connect to Redis", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	logger.Info("connected to Redis", slog.String("host", cfg.Redis.Host), slog.Int("port", cfg.Redis.Port))
+
+	// Create repository and cache
+	repo := postgres.NewOrderRepository(dbPool)
+	orderCache := redis.NewOrderCache(redisClient)
 
 	// Create service
-	orderService := service.NewOrderService(repo, nil)
+	orderService := service.NewOrderService(repo, orderCache)
 
 	// Create handlers
 	orderHandler := httpHandler.NewOrderHandler(orderService)
-	healthHandler := httpHandler.NewHealthHandler(cfg.App.Version, healthChecker)
+	healthHandler := httpHandler.NewHealthHandler(cfg.App.Version, &pgHealthChecker{pool: dbPool})
 
 	// Create router with logger
 	router := httpHandler.NewRouter(orderHandler, healthHandler, logger)
@@ -200,9 +125,11 @@ func NewServer(cfg *config.Config) *Server {
 	}
 
 	return &Server{
-		httpServer: httpServer,
-		cfg:        cfg,
-		logger:     logger,
+		httpServer:  httpServer,
+		cfg:         cfg,
+		logger:      logger,
+		dbPool:      dbPool,
+		redisCloser: redisClient.Close,
 	}
 }
 
@@ -215,10 +142,25 @@ func (s *Server) Start() error {
 	return nil
 }
 
-// Shutdown gracefully shuts down the server
+// Shutdown gracefully shuts down the server and closes connections
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.logger.Info("shutting down server")
-	return s.httpServer.Shutdown(ctx)
+
+	err := s.httpServer.Shutdown(ctx)
+
+	if s.dbPool != nil {
+		s.logger.Info("closing database connection pool")
+		s.dbPool.Close()
+	}
+
+	if s.redisCloser != nil {
+		s.logger.Info("closing Redis connection")
+		if redisErr := s.redisCloser(); redisErr != nil {
+			s.logger.Error("failed to close Redis", slog.String("error", redisErr.Error()))
+		}
+	}
+
+	return err
 }
 
 // Run starts the server and handles graceful shutdown
@@ -242,4 +184,16 @@ func Run(cfg *config.Config) error {
 	defer cancel()
 
 	return server.Shutdown(ctx)
+}
+
+// safeInt32 converts int to int32 with clamping to prevent overflow.
+func safeInt32(v int) int32 {
+	const maxInt32 = 1<<31 - 1
+	if v > maxInt32 {
+		return maxInt32
+	}
+	if v < 0 {
+		return 0
+	}
+	return int32(v) // #nosec G115 -- bounds checked above
 }

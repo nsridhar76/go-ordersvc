@@ -16,16 +16,14 @@ CREATE TABLE IF NOT EXISTS orders (
     CONSTRAINT positive_version CHECK (version > 0)
 );
 
--- Create indexes for query performance
-CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders(customer_id) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status) WHERE deleted_at IS NULL;
+-- Composite indexes covering WHERE + ORDER BY created_at DESC for paginated queries (ADR-0002)
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_orders_status_created ON orders(status, created_at DESC) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_orders_customer_created ON orders(customer_id, created_at DESC) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_orders_customer_status_created ON orders(customer_id, status, created_at DESC) WHERE deleted_at IS NULL;
 
 -- JSONB GIN index for items array queries
 CREATE INDEX IF NOT EXISTS idx_orders_items ON orders USING GIN(items);
-
--- Composite index for common query pattern (customer + status filter)
-CREATE INDEX IF NOT EXISTS idx_orders_customer_status ON orders(customer_id, status) WHERE deleted_at IS NULL;
 
 -- Function to automatically update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
