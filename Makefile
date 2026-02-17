@@ -117,8 +117,8 @@ k8s-deploy: ## Deploy to Kubernetes
 		--wait --timeout 5m
 
 k8s-status: ## Show deployment status
-	kubectl get pods -l app=$(BINARY_NAME)
-	kubectl get svc -l app=$(BINARY_NAME)
+	kubectl get pods -l app.kubernetes.io/name=$(BINARY_NAME)
+	kubectl get svc -l app.kubernetes.io/name=$(BINARY_NAME)
 
 # ============================================================================
 # Protobuf
