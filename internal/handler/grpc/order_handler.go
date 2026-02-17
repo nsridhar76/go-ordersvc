@@ -67,10 +67,10 @@ func (h *orderHandler) ListOrders(ctx context.Context, req *orderv1.ListOrdersRe
 
 	return &orderv1.ListOrdersResponse{
 		Orders:     orders,
-		Page:       int32(result.Page),
-		PageSize:   int32(result.PageSize),
+		Page:       int32(result.Page),     // #nosec G115 -- page is bounded by query params
+		PageSize:   int32(result.PageSize), // #nosec G115 -- page size is bounded by query params
 		TotalCount: result.TotalCount,
-		TotalPages: int32(result.TotalPages),
+		TotalPages: int32(result.TotalPages), // #nosec G115 -- total pages derived from bounded values
 	}, nil
 }
 
@@ -129,7 +129,7 @@ func (h *orderHandler) WatchOrders(req *orderv1.WatchOrdersRequest, stream grpc.
 			OldStatus:  evt.OldStatus,
 			NewStatus:  evt.NewStatus,
 			Total:      evt.Total,
-			Version:    int32(evt.Version),
+			Version:    int32(evt.Version), // #nosec G115 -- version is a small incrementing counter
 			OccurredAt: timestamppb.New(evt.OccurredAt),
 		}
 

@@ -1,7 +1,9 @@
+// Package messaging defines event types for order domain events.
 package messaging
 
 import "time"
 
+// Event type constants for order domain events.
 const (
 	EventOrderCreated       = "order.created"
 	EventOrderUpdated       = "order.updated"

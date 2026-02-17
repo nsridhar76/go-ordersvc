@@ -1,3 +1,4 @@
+// Package kafka implements event publishing using Apache Kafka.
 package kafka
 
 import (
@@ -35,6 +36,7 @@ func NewPublisher(brokers []string, topic string) *Publisher {
 	return &Publisher{writer: w, topic: topic}
 }
 
+// PublishOrderCreated publishes an order.created event to Kafka.
 func (p *Publisher) PublishOrderCreated(ctx context.Context, order *domain.Order) error {
 	evt := messaging.OrderEvent{
 		EventType:  messaging.EventOrderCreated,
@@ -48,6 +50,7 @@ func (p *Publisher) PublishOrderCreated(ctx context.Context, order *domain.Order
 	return p.publish(ctx, order.ID.String(), evt)
 }
 
+// PublishOrderUpdated publishes an order.updated event to Kafka.
 func (p *Publisher) PublishOrderUpdated(ctx context.Context, order *domain.Order) error {
 	evt := messaging.OrderEvent{
 		EventType:  messaging.EventOrderUpdated,
@@ -61,6 +64,7 @@ func (p *Publisher) PublishOrderUpdated(ctx context.Context, order *domain.Order
 	return p.publish(ctx, order.ID.String(), evt)
 }
 
+// PublishOrderStatusChanged publishes an order.status_changed event to Kafka.
 func (p *Publisher) PublishOrderStatusChanged(ctx context.Context, order *domain.Order, oldStatus, newStatus domain.OrderStatus) error {
 	evt := messaging.OrderEvent{
 		EventType:  messaging.EventOrderStatusChanged,
