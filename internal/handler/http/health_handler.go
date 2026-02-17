@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package http provides HTTP handlers for the order service API.
-package http
+package http //nolint:revive // intentional: matches handler layer convention
 
 import (
 	"context"
