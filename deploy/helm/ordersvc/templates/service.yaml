@@ -11,6 +11,10 @@ spec:
       targetPort: http
       protocol: TCP
       name: http
+    - port: 9090
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
   selector:
     {{- include "ordersvc.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: app

@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package order.v1;
+
+option go_package = "github.com/nsridhar76/go-ordersvc/api/proto/order/v1;orderv1";
+
+import "google/protobuf/timestamp.proto";
+
+// OrderService provides order operations including real-time streaming.
+service OrderService {
+  // GetOrder returns a single order by ID.
+  rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
+
+  // ListOrders returns a paginated list of orders.
+  rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
+
+  // WatchOrders streams new order events to the client.
+  rpc WatchOrders(WatchOrdersRequest) returns (stream OrderEvent);
+}
+
+message GetOrderRequest {
+  string order_id = 1;
+}
+
+message GetOrderResponse {
+  Order order = 1;
+}
+
+message ListOrdersRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  string status = 3;
+  string customer_id = 4;
+}
+
+message ListOrdersResponse {
+  repeated Order orders = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  int64 total_count = 4;
+  int32 total_pages = 5;
+}
+
+message WatchOrdersRequest {
+  repeated string statuses = 1;
+}
+
+message Order {
+  string id = 1;
+  string customer_id = 2;
+  repeated OrderItem items = 3;
+  string status = 4;
+  double total = 5;
+  int32 version = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message OrderItem {
+  string id = 1;
+  string product_id = 2;
+  string name = 3;
+  int32 quantity = 4;
+  double price = 5;
+  double subtotal = 6;
+}
+
+message OrderEvent {
+  string event_type = 1;
+  string order_id = 2;
+  string customer_id = 3;
+  string status = 4;
+  string old_status = 5;
+  string new_status = 6;
+  double total = 7;
+  int32 version = 8;
+  google.protobuf.Timestamp occurred_at = 9;
+}

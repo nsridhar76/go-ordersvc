@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -26,9 +27,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nsridhar76/go-ordersvc/internal/cache/redis"
 	"github.com/nsridhar76/go-ordersvc/internal/config"
+	grpcHandler "github.com/nsridhar76/go-ordersvc/internal/handler/grpc"
 	httpHandler "github.com/nsridhar76/go-ordersvc/internal/handler/http"
+	kafkapub "github.com/nsridhar76/go-ordersvc/internal/messaging/kafka"
+	"github.com/nsridhar76/go-ordersvc/internal/messaging/noop"
 	"github.com/nsridhar76/go-ordersvc/internal/repository/postgres"
 	"github.com/nsridhar76/go-ordersvc/internal/service"
+	"google.golang.org/grpc"
 )
 
 // pgHealthChecker adapts pgxpool.Pool to the HealthChecker interface
@@ -43,10 +48,12 @@ func (h *pgHealthChecker) Ping(ctx context.Context) error {
 // Server holds the HTTP server and its dependencies
 type Server struct {
 	httpServer  *http.Server
+	grpcServer  *grpc.Server
 	cfg         *config.Config
 	logger      *slog.Logger
 	dbPool      *pgxpool.Pool
 	redisCloser func() error
+	kafkaCloser func() error
 }
 
 // NewServer creates a new server instance
@@ -102,14 +109,27 @@ func NewServer(cfg *config.Config) *Server {
 	}
 	logger.Info("connected to Redis", slog.String("host", cfg.Redis.Host), slog.Int("port", cfg.Redis.Port))
 
+	// Initialize event publisher
+	var publisher service.EventPublisher
+	var kafkaCloser func() error
+	if len(cfg.Kafka.Brokers) > 0 && cfg.Kafka.Brokers[0] != "" {
+		kp := kafkapub.NewPublisher(cfg.Kafka.Brokers, cfg.Kafka.Topic)
+		publisher = kp
+		kafkaCloser = kp.Close
+		logger.Info("Kafka publisher initialized", slog.Any("brokers", cfg.Kafka.Brokers), slog.String("topic", cfg.Kafka.Topic))
+	} else {
+		publisher = noop.Publisher{}
+		logger.Info("Kafka not configured, using no-op publisher")
+	}
+
 	// Create repository and cache
 	repo := postgres.NewOrderRepository(dbPool)
 	orderCache := redis.NewOrderCache(redisClient)
 
 	// Create service
-	orderService := service.NewOrderService(repo, orderCache)
+	orderService := service.NewOrderService(repo, orderCache, publisher)
 
-	// Create handlers
+	// Create HTTP handlers
 	orderHandler := httpHandler.NewOrderHandler(orderService)
 	healthHandler := httpHandler.NewHealthHandler(cfg.App.Version, &pgHealthChecker{pool: dbPool})
 
@@ -124,17 +144,36 @@ func NewServer(cfg *config.Config) *Server {
 		WriteTimeout: cfg.Server.WriteTimeout,
 	}
 
+	// Create gRPC server
+	grpcSrv := grpc.NewServer()
+	grpcHandler.RegisterOrderServer(grpcSrv, orderService, cfg.Kafka)
+
 	return &Server{
 		httpServer:  httpServer,
+		grpcServer:  grpcSrv,
 		cfg:         cfg,
 		logger:      logger,
 		dbPool:      dbPool,
 		redisCloser: redisClient.Close,
+		kafkaCloser: kafkaCloser,
 	}
 }
 
-// Start starts the HTTP server
+// Start starts the HTTP and gRPC servers
 func (s *Server) Start() error {
+	// Start gRPC server in background
+	go func() {
+		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", s.cfg.Server.GRPCPort))
+		if err != nil {
+			s.logger.Error("failed to listen for gRPC", slog.String("error", err.Error()))
+			return
+		}
+		s.logger.Info("starting gRPC server", slog.Int("port", s.cfg.Server.GRPCPort))
+		if err := s.grpcServer.Serve(lis); err != nil {
+			s.logger.Error("gRPC server error", slog.String("error", err.Error()))
+		}
+	}()
+
 	s.logger.Info("starting HTTP server", slog.Int("port", s.cfg.Server.HTTPPort))
 	if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("failed to start HTTP server: %w", err)
@@ -145,6 +184,11 @@ func (s *Server) Start() error {
 // Shutdown gracefully shuts down the server and closes connections
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.logger.Info("shutting down server")
+
+	if s.grpcServer != nil {
+		s.logger.Info("stopping gRPC server")
+		s.grpcServer.GracefulStop()
+	}
 
 	err := s.httpServer.Shutdown(ctx)
 
@@ -157,6 +201,13 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.logger.Info("closing Redis connection")
 		if redisErr := s.redisCloser(); redisErr != nil {
 			s.logger.Error("failed to close Redis", slog.String("error", redisErr.Error()))
+		}
+	}
+
+	if s.kafkaCloser != nil {
+		s.logger.Info("closing Kafka publisher")
+		if kafkaErr := s.kafkaCloser(); kafkaErr != nil {
+			s.logger.Error("failed to close Kafka publisher", slog.String("error", kafkaErr.Error()))
 		}
 	}
 

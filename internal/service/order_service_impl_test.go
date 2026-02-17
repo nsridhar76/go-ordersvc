@@ -80,7 +80,7 @@ func TestOrderService_CreateOrder_ValidInput_ReturnsOrder(t *testing.T) {
 				},
 			}
 
-			service := NewOrderService(mockRepo, nil)
+			service := NewOrderService(mockRepo, nil, nil)
 			order, err := service.CreateOrder(context.Background(), tt.dto)
 
 			if tt.wantErr != nil {
@@ -179,7 +179,7 @@ func TestOrderService_CreateOrder_InvalidInput_ReturnsError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := &mocks.OrderRepositoryMock{}
-			service := NewOrderService(mockRepo, nil)
+			service := NewOrderService(mockRepo, nil, nil)
 
 			order, err := service.CreateOrder(context.Background(), tt.dto)
 
@@ -218,7 +218,7 @@ func TestOrderService_GetOrderByID_Found_ReturnsOrder(t *testing.T) {
 		},
 	}
 
-	service := NewOrderService(mockRepo, nil)
+	service := NewOrderService(mockRepo, nil, nil)
 	order, err := service.GetOrderByID(context.Background(), orderID.String())
 
 	assert.NoError(t, err)
@@ -236,7 +236,7 @@ func TestOrderService_GetOrderByID_NotFound_ReturnsError(t *testing.T) {
 		},
 	}
 
-	service := NewOrderService(mockRepo, nil)
+	service := NewOrderService(mockRepo, nil, nil)
 	order, err := service.GetOrderByID(context.Background(), orderID.String())
 
 	assert.Error(t, err)
@@ -299,7 +299,7 @@ func TestOrderService_ListOrders_WithPagination_ReturnsOrders(t *testing.T) {
 				},
 			}
 
-			service := NewOrderService(mockRepo, nil)
+			service := NewOrderService(mockRepo, nil, nil)
 			result, err := service.ListOrders(context.Background(), tt.request)
 
 			assert.NoError(t, err)
@@ -355,7 +355,7 @@ func TestOrderService_ListOrders_WithStatusFilter_ReturnsFilteredOrders(t *testi
 				},
 			}
 
-			service := NewOrderService(mockRepo, nil)
+			service := NewOrderService(mockRepo, nil, nil)
 			result, err := service.ListOrders(context.Background(), tt.request)
 
 			assert.NoError(t, err)
@@ -434,7 +434,7 @@ func TestOrderService_ListOrders_WithCustomerID_ReturnsFilteredOrders(t *testing
 				},
 			}
 
-			svc := NewOrderService(mockRepo, nil)
+			svc := NewOrderService(mockRepo, nil, nil)
 			result, err := svc.ListOrders(context.Background(), tt.request)
 
 			assert.NoError(t, err)
@@ -456,7 +456,7 @@ func TestOrderService_ListOrders_WithoutCustomerID_CallsList(t *testing.T) {
 		},
 	}
 
-	svc := NewOrderService(mockRepo, nil)
+	svc := NewOrderService(mockRepo, nil, nil)
 	result, err := svc.ListOrders(context.Background(), ListOrdersRequest{
 		Page:     1,
 		PageSize: 10,
@@ -474,7 +474,7 @@ func TestOrderService_ListOrders_EmptyResults_ReturnsEmptyList(t *testing.T) {
 		},
 	}
 
-	service := NewOrderService(mockRepo, nil)
+	service := NewOrderService(mockRepo, nil, nil)
 	result, err := service.ListOrders(context.Background(), ListOrdersRequest{
 		Page:     1,
 		PageSize: 10,
@@ -562,7 +562,7 @@ func TestOrderService_UpdateOrderStatus_ValidTransitions_Success(t *testing.T) {
 				},
 			}
 
-			service := NewOrderService(mockRepo, nil)
+			service := NewOrderService(mockRepo, nil, nil)
 			updatedOrder, err := service.UpdateOrderStatus(context.Background(), orderID.String(), tt.newStatus)
 
 			assert.NoError(t, err)
@@ -643,7 +643,7 @@ func TestOrderService_UpdateOrderStatus_InvalidTransitions_ReturnsError(t *testi
 				},
 			}
 
-			service := NewOrderService(mockRepo, nil)
+			service := NewOrderService(mockRepo, nil, nil)
 			updatedOrder, err := service.UpdateOrderStatus(context.Background(), orderID.String(), tt.newStatus)
 
 			assert.Error(t, err)
@@ -662,7 +662,7 @@ func TestOrderService_UpdateOrderStatus_OrderNotFound_ReturnsError(t *testing.T)
 		},
 	}
 
-	service := NewOrderService(mockRepo, nil)
+	service := NewOrderService(mockRepo, nil, nil)
 	updatedOrder, err := service.UpdateOrderStatus(context.Background(), orderID.String(), domain.OrderStatusConfirmed)
 
 	assert.Error(t, err)
@@ -755,7 +755,7 @@ func TestOrderService_UpdateOrderStatus_ConcurrentModification_ReturnsError(t *t
 		},
 	}
 
-	service := NewOrderService(mockRepo, nil)
+	service := NewOrderService(mockRepo, nil, nil)
 	updatedOrder, err := service.UpdateOrderStatus(context.Background(), orderID.String(), domain.OrderStatusConfirmed)
 
 	assert.Error(t, err)
@@ -796,7 +796,7 @@ func TestOrderService_UpdateOrder_ConcurrentModification_ReturnsError(t *testing
 		},
 	}
 
-	service := NewOrderService(mockRepo, nil)
+	service := NewOrderService(mockRepo, nil, nil)
 
 	dto := UpdateOrderDTO{
 		Items: []domain.OrderItem{
@@ -850,7 +850,7 @@ func TestOrderService_UpdateOrderStatus_VersionIncrementsOnSuccess(t *testing.T)
 		},
 	}
 
-	service := NewOrderService(mockRepo, nil)
+	service := NewOrderService(mockRepo, nil, nil)
 	updatedOrder, err := service.UpdateOrderStatus(context.Background(), orderID.String(), domain.OrderStatusConfirmed)
 
 	assert.NoError(t, err)
@@ -868,7 +868,7 @@ func TestOrderService_CreateOrder_SetsInitialVersion(t *testing.T) {
 		},
 	}
 
-	service := NewOrderService(mockRepo, nil)
+	service := NewOrderService(mockRepo, nil, nil)
 
 	dto := CreateOrderDTO{
 		CustomerID: uuid.New().String(),
@@ -926,7 +926,7 @@ func TestOrderService_UpdateOrderStatus_PreservesVersionFromRead(t *testing.T) {
 		},
 	}
 
-	service := NewOrderService(mockRepo, nil)
+	service := NewOrderService(mockRepo, nil, nil)
 	updatedOrder, err := service.UpdateOrderStatus(context.Background(), orderID.String(), domain.OrderStatusShipped)
 
 	assert.NoError(t, err)
@@ -974,7 +974,7 @@ func TestOrderService_GetOrderByID_CacheHit_ReturnsCachedOrder(t *testing.T) {
 		},
 	}
 
-	svc := NewOrderService(mockRepo, mockCache)
+	svc := NewOrderService(mockRepo, mockCache, nil)
 	order, err := svc.GetOrderByID(context.Background(), orderID.String())
 
 	assert.NoError(t, err)
@@ -1021,7 +1021,7 @@ func TestOrderService_GetOrderByID_CacheMiss_FetchesFromRepoAndPopulatesCache(t 
 		},
 	}
 
-	svc := NewOrderService(mockRepo, mockCache)
+	svc := NewOrderService(mockRepo, mockCache, nil)
 	order, err := svc.GetOrderByID(context.Background(), orderID.String())
 
 	assert.NoError(t, err)
@@ -1065,7 +1065,7 @@ func TestOrderService_GetOrderByID_CacheError_FallsThrough(t *testing.T) {
 		},
 	}
 
-	svc := NewOrderService(mockRepo, mockCache)
+	svc := NewOrderService(mockRepo, mockCache, nil)
 	order, err := svc.GetOrderByID(context.Background(), orderID.String())
 
 	assert.NoError(t, err)
@@ -1109,7 +1109,7 @@ func TestOrderService_UpdateOrderStatus_InvalidatesCache(t *testing.T) {
 		},
 	}
 
-	svc := NewOrderService(mockRepo, mockCache)
+	svc := NewOrderService(mockRepo, mockCache, nil)
 	_, err := svc.UpdateOrderStatus(context.Background(), orderID.String(), domain.OrderStatusConfirmed)
 
 	assert.NoError(t, err)
@@ -1151,10 +1151,150 @@ func TestOrderService_UpdateOrderStatus_CacheDeleteError_NonFatal(t *testing.T) 
 		},
 	}
 
-	svc := NewOrderService(mockRepo, mockCache)
+	svc := NewOrderService(mockRepo, mockCache, nil)
 	order, err := svc.UpdateOrderStatus(context.Background(), orderID.String(), domain.OrderStatusConfirmed)
 
 	assert.NoError(t, err, "cache delete error should not fail the update")
 	assert.NotNil(t, order)
 	assert.Equal(t, domain.OrderStatusConfirmed, order.Status)
+}
+
+// =============================================================================
+// Event Publishing Tests
+// =============================================================================
+
+func TestOrderService_CreateOrder_PublishesCreatedEvent(t *testing.T) {
+	var publishedOrder *domain.Order
+	mockRepo := &mocks.OrderRepositoryMock{
+		CreateFunc: func(_ context.Context, _ *domain.Order) error { return nil },
+	}
+	mockPublisher := &mocks.EventPublisherMock{
+		PublishOrderCreatedFunc: func(_ context.Context, order *domain.Order) error {
+			publishedOrder = order
+			return nil
+		},
+	}
+
+	svc := NewOrderService(mockRepo, nil, mockPublisher)
+	order, err := svc.CreateOrder(context.Background(), CreateOrderDTO{
+		CustomerID: uuid.New().String(),
+		Items: []domain.OrderItem{
+			{ProductID: "p-1", Name: "Product", Quantity: 1, Price: 10.00},
+		},
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, order)
+	assert.Equal(t, order, publishedOrder, "should publish the created order")
+}
+
+func TestOrderService_CreateOrder_PublishError_NonFatal(t *testing.T) {
+	mockRepo := &mocks.OrderRepositoryMock{
+		CreateFunc: func(_ context.Context, _ *domain.Order) error { return nil },
+	}
+	mockPublisher := &mocks.EventPublisherMock{
+		PublishOrderCreatedFunc: func(_ context.Context, _ *domain.Order) error {
+			return errors.New("kafka unavailable")
+		},
+	}
+
+	svc := NewOrderService(mockRepo, nil, mockPublisher)
+	order, err := svc.CreateOrder(context.Background(), CreateOrderDTO{
+		CustomerID: uuid.New().String(),
+		Items: []domain.OrderItem{
+			{ProductID: "p-1", Name: "Product", Quantity: 1, Price: 10.00},
+		},
+	})
+
+	assert.NoError(t, err, "publish error should not fail create")
+	assert.NotNil(t, order)
+}
+
+func TestOrderService_UpdateOrderStatus_PublishesStatusChangedEvent(t *testing.T) {
+	orderID := uuid.New()
+	currentOrder := &domain.Order{
+		ID:         orderID,
+		CustomerID: "cust-1",
+		Items: []domain.OrderItem{
+			{ID: uuid.New(), ProductID: "p-1", Name: "Product", Quantity: 1, Price: 10.00, Subtotal: 10.00},
+		},
+		Status:    domain.OrderStatusPending,
+		Total:     10.00,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	var capturedOld, capturedNew domain.OrderStatus
+	mockRepo := &mocks.OrderRepositoryMock{
+		FindByIDFunc: func(_ context.Context, _ string) (*domain.Order, error) { return currentOrder, nil },
+		UpdateFunc:   func(_ context.Context, _ *domain.Order) error { return nil },
+	}
+	mockPublisher := &mocks.EventPublisherMock{
+		PublishOrderStatusChangedFunc: func(_ context.Context, _ *domain.Order, old, new_ domain.OrderStatus) error {
+			capturedOld = old
+			capturedNew = new_
+			return nil
+		},
+	}
+
+	svc := NewOrderService(mockRepo, nil, mockPublisher)
+	_, err := svc.UpdateOrderStatus(context.Background(), orderID.String(), domain.OrderStatusConfirmed)
+
+	assert.NoError(t, err)
+	assert.Equal(t, domain.OrderStatusPending, capturedOld)
+	assert.Equal(t, domain.OrderStatusConfirmed, capturedNew)
+}
+
+func TestOrderService_UpdateOrder_PublishesUpdatedEvent(t *testing.T) {
+	orderID := uuid.New()
+	currentOrder := &domain.Order{
+		ID:         orderID,
+		CustomerID: "cust-1",
+		Items: []domain.OrderItem{
+			{ID: uuid.New(), ProductID: "p-1", Name: "Product", Quantity: 1, Price: 10.00, Subtotal: 10.00},
+		},
+		Status:    domain.OrderStatusPending,
+		Total:     10.00,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	published := false
+	mockRepo := &mocks.OrderRepositoryMock{
+		FindByIDFunc: func(_ context.Context, _ string) (*domain.Order, error) { return currentOrder, nil },
+		UpdateFunc:   func(_ context.Context, _ *domain.Order) error { return nil },
+	}
+	mockPublisher := &mocks.EventPublisherMock{
+		PublishOrderUpdatedFunc: func(_ context.Context, _ *domain.Order) error {
+			published = true
+			return nil
+		},
+	}
+
+	svc := NewOrderService(mockRepo, nil, mockPublisher)
+	_, err := svc.UpdateOrder(context.Background(), orderID.String(), UpdateOrderDTO{
+		Items: []domain.OrderItem{
+			{ProductID: "p-2", Name: "New Product", Quantity: 2, Price: 20.00},
+		},
+	})
+
+	assert.NoError(t, err)
+	assert.True(t, published, "should publish order.updated event")
+}
+
+func TestOrderService_CreateOrder_NilPublisher_NoError(t *testing.T) {
+	mockRepo := &mocks.OrderRepositoryMock{
+		CreateFunc: func(_ context.Context, _ *domain.Order) error { return nil },
+	}
+
+	svc := NewOrderService(mockRepo, nil, nil)
+	order, err := svc.CreateOrder(context.Background(), CreateOrderDTO{
+		CustomerID: uuid.New().String(),
+		Items: []domain.OrderItem{
+			{ProductID: "p-1", Name: "Product", Quantity: 1, Price: 10.00},
+		},
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, order)
 }

@@ -127,7 +127,7 @@ k8s-status: ## Show deployment status
 proto: ## Generate protobuf/gRPC code
 	protoc --go_out=. --go_opt=paths=source_relative \
 		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
-		api/proto/**/*.proto
+		api/proto/order/v1/*.proto
 
 # ============================================================================
 # Frontend
@@ -196,6 +196,15 @@ drift-check: ## Verify no config drift from ADRs
 	@grep -rn "rate\|RateLimit\|limiter\|429\|TooManyRequests" internal/handler/ && \
 		{ echo "FAIL: Handler contains rate limiting logic (violates ADR-0005)"; exit 1; } || \
 		echo "PASS: No rate limiting logic in handlers"
+	@echo ""
+	@echo "ADR-0006 CONSTRAINT: messaging package imports only domain..."
+	@grep -rn 'internal/service\|internal/handler\|internal/repository\|internal/cache' internal/messaging/ && \
+		{ echo "FAIL: messaging imports forbidden packages (violates ADR-0006)"; exit 1; } || \
+		echo "PASS: messaging imports domain only"
+	@echo ""
+	@echo "ADR-0006 CONSTRAINT: Publish after DB write, not before..."
+	@awk '/func.*CreateOrder/,/^func / { if (/repo\.Create/) found=1; if (/publisher/ && !found) { print "FAIL: publish before DB write in CreateOrder"; exit 1 } }' internal/service/order_service_impl.go && \
+		echo "PASS: Publish calls follow DB writes" || exit 1
 	@echo ""
 	@echo "==> All drift checks passed"
 

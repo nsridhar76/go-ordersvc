@@ -30,15 +30,17 @@ const orderCacheTTL = 5 * time.Minute
 
 // orderServiceImpl implements OrderService
 type orderServiceImpl struct {
-	repo  repository.OrderRepository
-	cache cache.OrderCache
+	repo      repository.OrderRepository
+	cache     cache.OrderCache
+	publisher EventPublisher
 }
 
 // NewOrderService creates a new OrderService
-func NewOrderService(repo repository.OrderRepository, orderCache cache.OrderCache) OrderService {
+func NewOrderService(repo repository.OrderRepository, orderCache cache.OrderCache, publisher EventPublisher) OrderService {
 	return &orderServiceImpl{
-		repo:  repo,
-		cache: orderCache,
+		repo:      repo,
+		cache:     orderCache,
+		publisher: publisher,
 	}
 }
 
@@ -92,6 +94,13 @@ func (s *orderServiceImpl) CreateOrder(ctx context.Context, dto CreateOrderDTO) 
 	// Save to repository
 	if err := s.repo.Create(ctx, order); err != nil {
 		return nil, err
+	}
+
+	// Publish event (warn + continue on failure)
+	if s.publisher != nil {
+		if err := s.publisher.PublishOrderCreated(ctx, order); err != nil {
+			slog.Warn("failed to publish order.created event", slog.String("order_id", order.ID.String()), slog.String("error", err.Error()))
+		}
 	}
 
 	return order, nil
@@ -175,6 +184,13 @@ func (s *orderServiceImpl) UpdateOrder(ctx context.Context, id string, dto Updat
 	// Save to repository
 	if err := s.repo.Update(ctx, order); err != nil {
 		return nil, err
+	}
+
+	// Publish event (warn + continue on failure)
+	if s.publisher != nil {
+		if err := s.publisher.PublishOrderUpdated(ctx, order); err != nil {
+			slog.Warn("failed to publish order.updated event", slog.String("order_id", order.ID.String()), slog.String("error", err.Error()))
+		}
 	}
 
 	return order, nil
@@ -266,6 +282,9 @@ func (s *orderServiceImpl) UpdateOrderStatus(ctx context.Context, id string, new
 		return nil, domain.ErrInvalidTransition
 	}
 
+	// Capture old status before mutation
+	oldStatus := order.Status
+
 	// Update status
 	order.Status = newStatus
 	order.UpdatedAt = time.Now()
@@ -273,6 +292,13 @@ func (s *orderServiceImpl) UpdateOrderStatus(ctx context.Context, id string, new
 	// Save to repository
 	if err := s.repo.Update(ctx, order); err != nil {
 		return nil, err
+	}
+
+	// Publish event (warn + continue on failure)
+	if s.publisher != nil {
+		if err := s.publisher.PublishOrderStatusChanged(ctx, order, oldStatus, newStatus); err != nil {
+			slog.Warn("failed to publish order.status_changed event", slog.String("order_id", order.ID.String()), slog.String("error", err.Error()))
+		}
 	}
 
 	// Invalidate cache
